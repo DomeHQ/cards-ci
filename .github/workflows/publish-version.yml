@@ -1,0 +1,64 @@
+name: Publish Workflow Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semver version (e.g., v1.2.3 or 1.2.3)
+        required: true
+        type: string
+      mark-stable:
+        description: Force-update the stable tag to this version
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION_INPUT: ${{ inputs.version }}
+      MARK_STABLE: ${{ inputs['mark-stable'] }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release
+          fetch-depth: 0
+
+      - name: Normalize version input
+        id: normalize
+        run: |
+          if [[ ! "$VERSION_INPUT" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must follow SemVer, e.g., v1.2.3 or 1.2.3" >&2
+            exit 1
+          fi
+
+          if [[ "$VERSION_INPUT" =~ ^v ]]; then
+            VERSION="$VERSION_INPUT"
+          else
+            VERSION="v$VERSION_INPUT"
+          fi
+
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists. Choose a new version." >&2
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create version tag
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          git tag -a "$VERSION" -m "cards-ci $VERSION"
+          git push origin "$VERSION"
+
+      - name: Update stable tag
+        if: ${{ env.MARK_STABLE == 'true' }}
+        run: |
+          git tag -fa stable -m "Latest stable cards-ci workflow" "$VERSION"
+          git push origin stable --force
