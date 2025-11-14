@@ -3,10 +3,6 @@ name: Card Release
 on:
   workflow_call:
     inputs:
-      card-name:
-        description: Override for the card name used in artifacts
-        required: false
-        type: string
       node-version:
         description: Node.js version for the build
         required: false
@@ -31,13 +27,11 @@ jobs:
           node-version: ${{ inputs.node-version }}
 
       - name: Set card metadata
-        env:
-          CARD_NAME_INPUT: ${{ inputs.card-name }}
         run: |
-          if [ -n "$CARD_NAME_INPUT" ]; then
-            CARD_NAME="$CARD_NAME_INPUT"
-          else
-            CARD_NAME=${GITHUB_REPOSITORY##*/}
+          CARD_NAME=$(node -e "console.log(require('./package.json').name || '')")
+          if [ -z "$CARD_NAME" ]; then
+            echo "Card name missing from package.json" >&2
+            exit 1
           fi
           echo "CARD_NAME=$CARD_NAME" >> "$GITHUB_ENV"
 
