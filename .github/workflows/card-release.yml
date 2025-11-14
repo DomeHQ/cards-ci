@@ -1,0 +1,67 @@
+name: Card Release
+
+on:
+  workflow_call:
+    inputs:
+      card-name:
+        description: Override for the card name used in artifacts
+        required: false
+        type: string
+      node-version:
+        description: Node.js version for the build
+        required: false
+        type: string
+        default: '18.19.1'
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Set card metadata
+        env:
+          CARD_NAME_INPUT: ${{ inputs.card-name }}
+        run: |
+          if [ -n "$CARD_NAME_INPUT" ]; then
+            CARD_NAME="$CARD_NAME_INPUT"
+          else
+            CARD_NAME=${GITHUB_REPOSITORY##*/}
+          fi
+          echo "CARD_NAME=$CARD_NAME" >> "$GITHUB_ENV"
+
+      - name: Build and Deploy
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          IUID=$(node -e "console.log(require('./package.json').domeBuild?.iuid || '')")
+          [ -z "$IUID" ] && echo "IUID missing" && exit 1
+          echo "IUID=$IUID"
+
+          npm ci --legacy-peer-deps
+
+          export TZ=UTC
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          OUTPUT_FILE=build_output.${IUID}.${TIMESTAMP}.${CARD_NAME}.txt
+
+          npm run build | sed 's/\x1b\[[0-9;]*m//g' > "$OUTPUT_FILE"
+          cat "$OUTPUT_FILE"
+
+          BASE_DIR=$(find ./build ./dist -name index.html -exec dirname {} \; | head -n1)
+          mkdir -p "$IUID" && mv "$BASE_DIR"/* "$IUID"
+
+          aws s3 sync "./${IUID}" "s3://intouch_static/3rdparty/cards/${IUID}/" --exclude "*" --include "*.js" --include "*.css" --cache-control "max-age=31536000, immutable" --region us-east-1
+          aws s3 sync "./${IUID}" "s3://intouch_static/3rdparty/cards/${IUID}/" --exclude "*.js" --exclude "*.css" --include "*" --cache-control "max-age=86400" --region us-east-1
+          aws s3 cp "$OUTPUT_FILE" "s3://intouch-config-aws/webapp-build-output/incoming/" --region us-west-2
