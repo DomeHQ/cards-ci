@@ -28,9 +28,9 @@ jobs:
 
       - name: Set card metadata
         run: |
-          CARD_NAME=$(node -e "console.log(require('./package.json').name || '')")
+          CARD_NAME=$(node -e "console.log(require('./manifest-card.json')?.name || '')")
           if [ -z "$CARD_NAME" ]; then
-            echo "Card name missing from package.json" >&2
+            echo "Card name missing from manifest-card.json" >&2
             exit 1
           fi
           echo "CARD_NAME=$CARD_NAME" >> "$GITHUB_ENV"
@@ -40,7 +40,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          IUID=$(node -e "console.log(require('./package.json').domeBuild?.iuid || '')")
+          IUID=$(node -e "console.log(require('./manifest-card.json')?.iuid || '')")
           [ -z "$IUID" ] && echo "IUID missing" && exit 1
           echo "IUID=$IUID"
 
