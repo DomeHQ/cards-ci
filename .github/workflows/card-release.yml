@@ -9,9 +9,9 @@ on:
         type: string
         default: '22.20.0'
     secrets:
-      AWS_ACCESS_KEY_ID:
+      WEBAPP_ID:
         required: true
-      AWS_SECRET_ACCESS_KEY:
+      WEBAPP_DEPLOY_TOKEN:
         required: true
 
 jobs:
@@ -26,36 +26,56 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Set card metadata
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      # React: build/ ; Angular: dist/
+      - name: Zip build output
         run: |
-          CARD_NAME=$(node -e "console.log(require('./manifest-card.json')?.name || '')")
-          if [ -z "$CARD_NAME" ]; then
-            echo "Card name missing from manifest-card.json" >&2
+          BUILD_DIR='build'
+          if [ -d 'dist' ]; then
+            BUILD_DIR='dist'
+          fi
+          echo "Using build directory: $BUILD_DIR"
+          zip -r card-build.zip "$BUILD_DIR"
+
+      - name: Request upload URL from Dome
+        id: upload_url
+        env:
+          WEBAPP_ID: ${{ secrets.WEBAPP_ID }}
+          WEBAPP_DEPLOY_TOKEN: ${{ secrets.WEBAPP_DEPLOY_TOKEN }}
+        run: |
+          API_URL="https://api.intouch.so/api/v1/webapps/${WEBAPP_ID}/deploy/request_upload_zip_url/"
+
+          RESPONSE=$(curl -sS -X POST \
+            -H "X-Deploy-Token: ${WEBAPP_DEPLOY_TOKEN}" \
+            "${API_URL}")
+
+          echo "API response: $RESPONSE"
+
+          UPLOAD_URL=$(echo "$RESPONSE" | jq -r '.zip.upload_url')
+          FILENAME=$(echo "$RESPONSE" | jq -r '.zip.filename')
+
+          if [ -z "$UPLOAD_URL" ] || [ "$UPLOAD_URL" = 'null' ]; then
+            echo 'upload_url missing in response'
             exit 1
           fi
-          echo "CARD_NAME=$CARD_NAME" >> "$GITHUB_ENV"
 
-      - name: Build and Deploy
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          if [ -z "$FILENAME" ] || [ "$FILENAME" = 'null' ]; then
+            echo 'filename missing in response'
+            exit 1
+          fi
+
+          echo "Will upload as: $FILENAME"
+          echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
+          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload ZIP to S3 via presigned URL
         run: |
-          IUID=$(node -e "console.log(require('./manifest-card.json')?.iuid || '')")
-          [ -z "$IUID" ] && echo "IUID missing" && exit 1
-          echo "IUID=$IUID"
-
-          npm ci --legacy-peer-deps
-
-          export TZ=UTC
-          TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          OUTPUT_FILE=build_output.${IUID}.${TIMESTAMP}.${CARD_NAME}.txt
-
-          npm run build | sed 's/\x1b\[[0-9;]*m//g' > "$OUTPUT_FILE"
-          cat "$OUTPUT_FILE"
-
-          BASE_DIR=$(find ./build ./dist -name index.html -exec dirname {} \; | head -n1)
-          mkdir -p "$IUID" && mv "$BASE_DIR"/* "$IUID"
-
-          aws s3 sync "./${IUID}" "s3://intouch_static/3rdparty/cards/${IUID}/" --exclude "*" --include "*.js" --include "*.css" --cache-control "max-age=31536000, immutable" --region us-east-1
-          aws s3 sync "./${IUID}" "s3://intouch_static/3rdparty/cards/${IUID}/" --exclude "*.js" --exclude "*.css" --include "*" --cache-control "max-age=86400" --region us-east-1
-          aws s3 cp "$OUTPUT_FILE" "s3://intouch-config-aws/webapp-build-output/incoming/" --region us-west-2
+          curl -X PUT \
+            -H 'Content-Type: application/zip' \
+            --upload-file card-build.zip \
+            '${{ steps.upload_url.outputs.upload_url }}'
