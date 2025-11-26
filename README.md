@@ -8,14 +8,15 @@ Cards should reference these workflows via tags so they can pin to a known-good 
 ```yaml
 jobs:
   release:
-    uses: your-org/cards-ci/.github/workflows/card-release.yml@stable
+    uses: InTouchSO/cards-ci/.github/workflows/card-release.yml@stable
     with:
       node-version: '20'
-    secrets: inherit
+    secrets:
+      WEBAPP_DEPLOY_TOKEN: ${{ secrets.WEBAPP_DEPLOY_TOKEN }}
 ```
 
 - Use a concrete tag such as `@v1.2.3` to pin to an exact release.
-- Use the movable `@stable` tag to always consume the most recently blessed version.
+- Use the movable `@stable` tag to always consume the most recent version.
 
 ## Publishing new versions
 
