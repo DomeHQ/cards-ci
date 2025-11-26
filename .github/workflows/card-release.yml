@@ -49,7 +49,6 @@ jobs:
           WEBAPP_DEPLOY_TOKEN: ${{ secrets.WEBAPP_DEPLOY_TOKEN }}
         run: |
           API_URL="https://api.intouch.so/api/v1/webapps/${WEBAPP_ID}/deploy/request_upload_zip_url/"
-          echo "Requesting upload URL from: $API_URL with token $WEBAPP_DEPLOY_TOKEN"
 
           RESPONSE=$(curl -sS -X POST \
             -H "X-Deploy-Token: ${WEBAPP_DEPLOY_TOKEN}" \
@@ -70,6 +69,14 @@ jobs:
             exit 1
           fi
 
+          if [ ! -f card-build.zip ]; then
+            echo 'card-build.zip not found before rename'
+            exit 1
+          fi
+
+          mv card-build.zip "$FILENAME"
+          echo "Renamed ZIP to: $FILENAME"
+
           echo "Will upload as: $FILENAME"
           echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
           echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
@@ -77,9 +84,10 @@ jobs:
       - name: Upload ZIP to S3 via presigned URL
         run: |
           UPLOAD_URL='${{ steps.upload_url.outputs.upload_url }}'
-          echo "Uploading card-build.zip to: $UPLOAD_URL"
+          UPLOAD_FILE='${{ steps.upload_url.outputs.filename }}'
+          echo "Uploading $UPLOAD_FILE to: $UPLOAD_URL"
 
           curl -X PUT \
             -H 'Content-Type: application/zip' \
-            --upload-file card-build.zip \
+            --upload-file "$UPLOAD_FILE" \
             "$UPLOAD_URL"
