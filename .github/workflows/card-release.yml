@@ -78,6 +78,8 @@ jobs:
           echo "Renamed ZIP to: $FILENAME"
 
           echo "Will upload as: $FILENAME"
+          echo "Upload URL: $UPLOAD_URL"
+          
           echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
           echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
 
