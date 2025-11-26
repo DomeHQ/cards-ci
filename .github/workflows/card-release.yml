@@ -9,7 +9,7 @@ on:
         type: string
         default: '22.20.0'
     secrets:
-      WEBAPP_ID:
+      WEBAPP_IUID:
         required: true
       WEBAPP_DEPLOY_TOKEN:
         required: true
@@ -42,13 +42,14 @@ jobs:
           echo "Using build directory: $BUILD_DIR"
           zip -r card-build.zip "$BUILD_DIR"
 
-      - name: Request upload URL from Dome
-        id: upload_url
+      - name: Request upload URL and upload ZIP
         env:
-          WEBAPP_ID: ${{ secrets.WEBAPP_ID }}
+          WEBAPP_IUID: ${{ secrets.WEBAPP_IUID }}
           WEBAPP_DEPLOY_TOKEN: ${{ secrets.WEBAPP_DEPLOY_TOKEN }}
         run: |
-          API_URL="https://api.intouch.so/api/v1/webapps/${WEBAPP_ID}/deploy/request_upload_zip_url/"
+          API_URL="https://api.intouch.so/api/v1/webapps/${WEBAPP_IUID}/deploy/request_upload_zip_url/"
+
+          echo "Requesting presigned POST from: ${API_URL}"
 
           RESPONSE=$(curl -sS -X POST \
             -H "X-Deploy-Token: ${WEBAPP_DEPLOY_TOKEN}" \
@@ -77,19 +78,11 @@ jobs:
           mv card-build.zip "$FILENAME"
           echo "Renamed ZIP to: $FILENAME"
 
-          echo "Will upload as: $FILENAME"
           echo "Upload URL: $UPLOAD_URL"
-          
-          echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
-          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
 
-      - name: Upload ZIP to S3 via presigned URL
-        run: |
-          UPLOAD_URL='${{ steps.upload_url.outputs.upload_url }}'
-          UPLOAD_FILE='${{ steps.upload_url.outputs.filename }}'
-          echo "Uploading $UPLOAD_FILE to: $UPLOAD_URL"
+          CURL_FIELDS=$(echo "$RESPONSE" | jq -r '.zip.fields | to_entries[] | "-F \"" + .key + "=" + .value + "\""' | xargs)
 
-          curl -X PUT \
-            -H 'Content-Type: application/zip' \
-            --upload-file "$UPLOAD_FILE" \
-            "$UPLOAD_URL"
+          echo "Uploading $FILENAME using presigned POST..."
+
+          # shellcheck disable=SC2086
+          eval "curl -f -X POST $CURL_FIELDS -F \"file=@$FILENAME\" \"$UPLOAD_URL\""
