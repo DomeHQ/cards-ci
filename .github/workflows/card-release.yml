@@ -9,7 +9,7 @@ on:
         type: string
         default: '22.20.0'
     secrets:
-      WEBAPP_IUID:
+      WEBAPP_ID:
         required: true
       WEBAPP_DEPLOY_TOKEN:
         required: true
@@ -44,10 +44,10 @@ jobs:
 
       - name: Request upload URL and upload ZIP
         env:
-          WEBAPP_IUID: ${{ secrets.WEBAPP_IUID }}
+          WEBAPP_ID: ${{ secrets.WEBAPP_ID }}
           WEBAPP_DEPLOY_TOKEN: ${{ secrets.WEBAPP_DEPLOY_TOKEN }}
         run: |
-          API_URL="https://api.intouch.so/api/v1/webapps/${WEBAPP_IUID}/deploy/request_upload_zip_url/"
+          API_URL="https://api.intouch.so/api/v1/webapps/${WEBAPP_ID}/deploy/request_upload_zip_url/"
 
           echo "Requesting presigned POST from: ${API_URL}"
 
