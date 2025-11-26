@@ -9,8 +9,6 @@ on:
         type: string
         default: '22.20.0'
     secrets:
-      WEBAPP_ID:
-        required: true
       WEBAPP_DEPLOY_TOKEN:
         required: true
 
@@ -51,9 +49,19 @@ jobs:
 
       - name: Request upload URL and upload ZIP
         env:
-          WEBAPP_ID: ${{ secrets.WEBAPP_ID }}
           WEBAPP_DEPLOY_TOKEN: ${{ secrets.WEBAPP_DEPLOY_TOKEN }}
         run: |
+          if [ ! -f manifest-card.json ]; then
+            echo 'manifest-card.json not found in repository root'
+            exit 1
+          fi
+
+          WEBAPP_ID=$(jq -r '.iuid // empty' manifest-card.json)
+          if [ -z "$WEBAPP_ID" ]; then
+            echo 'iuid missing in manifest-card.json'
+            exit 1
+          fi
+
           API_URL="https://api.intouch.so/api/v1/webapps/${WEBAPP_ID}/deploy/request_upload_zip_url/"
 
           echo "Requesting presigned POST from: ${API_URL}"
