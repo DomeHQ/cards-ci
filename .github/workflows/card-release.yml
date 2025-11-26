@@ -49,6 +49,7 @@ jobs:
           WEBAPP_DEPLOY_TOKEN: ${{ secrets.WEBAPP_DEPLOY_TOKEN }}
         run: |
           API_URL="https://api.intouch.so/api/v1/webapps/${WEBAPP_ID}/deploy/request_upload_zip_url/"
+          echo "Requesting upload URL from: $API_URL with token $WEBAPP_DEPLOY_TOKEN"
 
           RESPONSE=$(curl -sS -X POST \
             -H "X-Deploy-Token: ${WEBAPP_DEPLOY_TOKEN}" \
@@ -75,7 +76,10 @@ jobs:
 
       - name: Upload ZIP to S3 via presigned URL
         run: |
+          UPLOAD_URL='${{ steps.upload_url.outputs.upload_url }}'
+          echo "Uploading card-build.zip to: $UPLOAD_URL"
+
           curl -X PUT \
             -H 'Content-Type: application/zip' \
             --upload-file card-build.zip \
-            '${{ steps.upload_url.outputs.upload_url }}'
+            "$UPLOAD_URL"
