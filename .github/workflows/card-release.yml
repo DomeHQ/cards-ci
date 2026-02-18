@@ -11,6 +11,8 @@ on:
     secrets:
       WEBAPP_DEPLOY_TOKEN:
         required: true
+      CARD_DEC_BLOB:
+          required: true
 
 jobs:
   build:
