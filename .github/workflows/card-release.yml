@@ -27,6 +27,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prepare build env
+        shell: bash
+        env:
+          CARD_DEC_BLOB: ${{ secrets.CARD_DEC_BLOB }}
+        run: |
+          set -euo pipefail
+          [ -n "${CARD_DEC_BLOB:-}" ] || { echo "CARD_DEC_BLOB missing"; exit 1; }
+
+          cat > .env <<EOF
+          CARD_DEC_BLOB=${CARD_DEC_BLOB}
+          VITE_CARD_DEC_BLOB=${CARD_DEC_BLOB}
+          REACT_APP_CARD_DEC_BLOB=${CARD_DEC_BLOB}
+          NEXT_PUBLIC_CARD_DEC_BLOB=${CARD_DEC_BLOB}
+          EOF
+
       - name: Build app
         run: |
           set -o pipefail
